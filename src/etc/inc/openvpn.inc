@@ -2562,25 +2562,4 @@ function openvpn_authscript_string($authmode, $strictusercn, $mode_id, $local_po
 	return "plugin /usr/local/lib/openvpn/plugins/openvpn-plugin-auth-script.so /usr/local/sbin/ovpn_auth_verify_async user " . base64_encode($authmode) . " {$strictusercn} {$mode_id} {$local_port}\n";
 }
 
-function openvpn_inuse($id, $mode) {
-	foreach (get_configured_interface_list(true) as $if) {
-		if (config_get_path("interfaces/{$if}/if") == openvpn_name($mode, ['vpnid' => $id])) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-function openvpn_tunnel_network_fix($tunnel_network) {
-	$tunnel_network = trim($tunnel_network);
-	if (is_subnet($tunnel_network)) {
-		/* convert to correct network address,
-		 * see https://redmine.pfsense.org/issues/11416 */
-		list($tunnel_ip, $tunnel_netmask) = explode('/', $tunnel_network);
-		$tunnel_network = gen_subnet($tunnel_ip, $tunnel_netmask) . '/' . $tunnel_netmask;
-	}
-	return $tunnel_network;
-}
-
 ?>
