@@ -1,0 +1,24 @@
+--- /usr/local/www/firewall_aliases_edit.php
++++ /usr/local/www/firewall_aliases_edit.php
+@@ -138,8 +138,21 @@ $pgtitle = array(gettext("Firewall"), gettext("Aliases"), gettext("Edit"));
+ $pglinks = array("", "firewall_aliases.php?tab=" . $tab, "@self");
+ 
+ if ($_POST['save']) {
++    // Capture old addresses before saveAlias overwrites them
++    $old_alias_addresses = isset($pconfig["address"]) ? explode(" ", $pconfig["address"]) : [];
+ 	$input_errors = saveAlias($_POST, $id);
+ 
++    // Flush stale states for removed IPs from host-type aliases
++    if (!$input_errors && isset($id)) {
++        $new_alias_addresses = explode(" ", config_get_path("aliases/alias/{$id}/address"));
++        $removed = array_diff($old_alias_addresses, $new_alias_addresses);
++        foreach ($removed as $ip) {
++            $ip = trim($ip);
++            if (is_ipaddr($ip)) {
++                mwexec("pfctl -k {$ip}");
++            }
++        }
++    }
+ 	if (!$input_errors) {
+ 		mark_subsystem_dirty('aliases');
+ 
