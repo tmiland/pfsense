@@ -874,10 +874,32 @@ function filter_generate_nested_alias_recurse($name, $alias, &$aliasnesting, &$a
 				if (!isset($filterdns["{$address}{$name}"])) {
 					$filterdns["{$address}{$name}"] = "pf {$address} {$name}\n";
 				}
-				continue;
+				/* Resolve the full address set for the hostname (multi-sample to
+				 * defeat rotating single answers, follow CNAME chains, merge in
+				 * previously observed addresses). The resolved IPs are added
+				 * inline so the shared block below turns them into literal
+				 * filterdns watches ("pf <ip> <name>") which keep every known
+				 * address in the table. */
+				$aliasaddrnesting[$address] = $address;
+				foreach (resolve_alias_host_addresses($address) as $resolved_ip) {
+					if (isset($aliasaddrnesting[$resolved_ip])) {
+						continue;
+					}
+					$aliasaddrnesting[$resolved_ip] = $resolved_ip;
+					if ((strlen($tmpline) + $linelength) > 4036) {
+						$finallist .= "{$tmpline} \\\n";
+						$tmpline = "";
+						$linelength = 0;
+					}
+					$tmpline .= " {$resolved_ip}";
+				}
+				if (empty($tmpline)) {
+					continue;
+				}
+			} else {
+				$aliasaddrnesting[$address] = $address;
+				$tmpline = " {$address}";
 			}
-			$aliasaddrnesting[$address] = $address;
-			$tmpline = " {$address}";
 		}
 		if ((strlen($tmpline)+ $linelength) > 4036) {
 			$finallist .= "{$builtlist} \\\n";
