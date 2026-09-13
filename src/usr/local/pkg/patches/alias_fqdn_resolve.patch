@@ -1,0 +1,117 @@
+diff --git a/src/etc/inc/filter.inc b/src/etc/inc/filter.inc
+index d98a2b6cf3..cfa8dc23b7 100644
+--- /etc/inc/filter.inc
++++ /etc/inc/filter.inc
+@@ -874,10 +874,32 @@ function filter_generate_nested_alias_recurse($name, $alias, &$aliasnesting, &$a
+ 				if (!isset($filterdns["{$address}{$name}"])) {
+ 					$filterdns["{$address}{$name}"] = "pf {$address} {$name}\n";
+ 				}
+-				continue;
++				/* Resolve the full address set for the hostname (multi-sample to
++				 * defeat rotating single answers, follow CNAME chains, merge in
++				 * previously observed addresses). The resolved IPs are added
++				 * inline so the shared block below turns them into literal
++				 * filterdns watches ("pf <ip> <name>") which keep every known
++				 * address in the table. */
++				$aliasaddrnesting[$address] = $address;
++				foreach (resolve_alias_host_addresses($address) as $resolved_ip) {
++					if (isset($aliasaddrnesting[$resolved_ip])) {
++						continue;
++					}
++					$aliasaddrnesting[$resolved_ip] = $resolved_ip;
++					if ((strlen($tmpline) + $linelength) > 4036) {
++						$finallist .= "{$tmpline} \\\n";
++						$tmpline = "";
++						$linelength = 0;
++					}
++					$tmpline .= " {$resolved_ip}";
++				}
++				if (empty($tmpline)) {
++					continue;
++				}
++			} else {
++				$aliasaddrnesting[$address] = $address;
++				$tmpline = " {$address}";
+ 			}
+-			$aliasaddrnesting[$address] = $address;
+-			$tmpline = " {$address}";
+ 		}
+ 		if ((strlen($tmpline)+ $linelength) > 4036) {
+ 			$finallist .= "{$builtlist} \\\n";
+diff --git a/src/etc/inc/pfsense-utils.inc b/src/etc/inc/pfsense-utils.inc
+index d385f52e3b..f8b06035e4 100644
+--- /etc/inc/pfsense-utils.inc
++++ /etc/inc/pfsense-utils.inc
+@@ -1950,6 +1950,72 @@ function resolve_host_addresses($host, $recordtypes = array(DNS_A, DNS_AAAA, DNS
+ 	return $resolved;
+ }
+ 
++/**
++ * Resolve every A/AAAA address for a hostname, following CNAME chains and
++ * sampling the resolver several times so a single rotating answer cannot
++ * leave the alias table incomplete. Previously observed addresses are merged
++ * in from /var/db/dnscache and the aggregated set is persisted for the next
++ * reload, so addresses keep the table even after the domain rotates away.
++ */
++function resolve_alias_host_addresses($host, $samples = 3) {
++	$all = array();
++
++	if (is_ipaddr($host)) {
++		return array($host);
++	}
++
++	/* Retain addresses observed on previous reloads */
++	if (is_dir("/var/db/dnscache") && is_readable("/var/db/dnscache/{$host}")) {
++		foreach (file("/var/db/dnscache/{$host}") as $line) {
++			$line = trim($line);
++			if (is_ipaddr($line) && !isset($all[$line])) {
++				$all[$line] = true;
++			}
++		}
++	}
++
++	/* Sample the resolver several times to collect rotating single answers */
++	for ($i = 0; $i < $samples; $i++) {
++		foreach (resolve_host_addresses($host, array(DNS_A | DNS_AAAA), false) as $addr) {
++			if (is_ipaddr($addr) && !isset($all[$addr])) {
++				$all[$addr] = true;
++			}
++		}
++	}
++
++	/* Follow CNAME chains to their terminal addresses */
++	$stack = array($host);
++	$visited = array($host => true);
++	while (!empty($stack)) {
++		$cname = array_pop($stack);
++		foreach (resolve_host_addresses($cname, array(DNS_CNAME), false) as $target) {
++			if (!is_fqdn($target) || isset($visited[$target])) {
++				continue;
++			}
++			$visited[$target] = true;
++			$stack[] = $target;
++			foreach (resolve_host_addresses($target, array(DNS_A | DNS_AAAA), false) as $addr) {
++				if (is_ipaddr($addr) && !isset($all[$addr])) {
++					$all[$addr] = true;
++				}
++			}
++		}
++	}
++
++	if (empty($all)) {
++		return array();
++	}
++
++	$ips = array_keys($all);
++
++	/* Persist the aggregated set so the alias table survives reloads */
++	if (is_dir("/var/db/dnscache") || @mkdir("/var/db/dnscache", 0755, true)) {
++		@file_put_contents("/var/db/dnscache/{$host}", implode("\n", $ips) . "\n");
++	}
++
++	return $ips;
++}
++
+ function add_hostname_to_watch($hostname) {
+ 	if (!is_dir("/var/db/dnscache")) {
+ 		mkdir("/var/db/dnscache");
