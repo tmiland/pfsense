@@ -1,0 +1,93 @@
+From f6d80749de68d891e116b0cd85eae74693e7a957 Mon Sep 17 00:00:00 2001
+From: Tommy Miland <kontakt@tmiland.com>
+Date: Fri, 27 Mar 2026 17:09:13 +0100
+Subject: [PATCH] Revert Commit 2e6b284
+
+---
+ src/etc/inc/openvpn.inc                  | 21 ---------------------
+ src/usr/local/www/vpn_openvpn_client.php |  8 ++------
+ src/usr/local/www/vpn_openvpn_server.php |  8 ++------
+ 3 files changed, 4 insertions(+), 33 deletions(-)
+
+diff --git a/src/etc/inc/openvpn.inc b/src/etc/inc/openvpn.inc
+index 582413dd067..598a29b86ac 100644
+--- a/src/etc/inc/openvpn.inc
++++ b/src/etc/inc/openvpn.inc
+@@ -2562,25 +2562,4 @@ function openvpn_authscript_string($authmode, $strictusercn, $mode_id, $local_po
+ 	return "plugin /usr/local/lib/openvpn/plugins/openvpn-plugin-auth-script.so /usr/local/sbin/ovpn_auth_verify_async user " . base64_encode($authmode) . " {$strictusercn} {$mode_id} {$local_port}\n";
+ }
+ 
+-function openvpn_inuse($id, $mode) {
+-	foreach (get_configured_interface_list(true) as $if) {
+-		if (config_get_path("interfaces/{$if}/if") == openvpn_name($mode, ['vpnid' => $id])) {
+-			return true;
+-		}
+-	}
+-
+-	return false;
+-}
+-
+-function openvpn_tunnel_network_fix($tunnel_network) {
+-	$tunnel_network = trim($tunnel_network);
+-	if (is_subnet($tunnel_network)) {
+-		/* convert to correct network address,
+-		 * see https://redmine.pfsense.org/issues/11416 */
+-		list($tunnel_ip, $tunnel_netmask) = explode('/', $tunnel_network);
+-		$tunnel_network = gen_subnet($tunnel_ip, $tunnel_netmask) . '/' . $tunnel_netmask;
+-	}
+-	return $tunnel_network;
+-}
+-
+ ?>
+diff --git a/src/usr/local/www/vpn_openvpn_client.php b/src/usr/local/www/vpn_openvpn_client.php
+index bbf1b0c79d8..cedea6d3556 100644
+--- a/src/usr/local/www/vpn_openvpn_client.php
++++ b/src/usr/local/www/vpn_openvpn_client.php
+@@ -68,9 +68,7 @@
+ 
+ 	if (empty($this_client_config)) {
+ 		$wc_msg = gettext('Deleted empty OpenVPN client');
+-	} elseif (openvpn_inuse($this_client_config['vpnid'], 'client')) {
+-		$input_errors[] = gettext("Cannot delete an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
+-	} elseif (!$user_can_edit_advanced && !empty($this_client_config['custom_options'])) {
++	} elseif (!$user_can_edit_advanced && !empty($a_client[$id]['custom_options'])) {
+ 		$input_errors[] = gettext("This user does not have sufficient privileges to delete an instance with Advanced options set.");
+ 	} else {
+ 		openvpn_delete('client', $this_client_config);
+@@ -211,9 +209,7 @@
+ 		$vpnid = 0;
+ 	}
+ 
+-	if ($pconfig['disable'] && openvpn_inuse($vpnid, 'client')) {
+-		$input_errors[] = gettext("Cannot disable an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
+-	}
++	$pconfig['ncp_enable'] = ($pconfig['ncp_enable'] == 'yes') ? 'enabled' : 'disabled';
+ 
+ 	if (isset($pconfig['custom_options']) &&
+ 	    ($pconfig['custom_options'] != $this_client_config['custom_options']) &&
+diff --git a/src/usr/local/www/vpn_openvpn_server.php b/src/usr/local/www/vpn_openvpn_server.php
+index 9f8947b7000..0f805f801d6 100644
+--- a/src/usr/local/www/vpn_openvpn_server.php
++++ b/src/usr/local/www/vpn_openvpn_server.php
+@@ -77,9 +77,7 @@
+ 
+ 	if (empty($this_server_config)) {
+ 		$wc_msg = gettext('Deleted empty OpenVPN server');
+-	} elseif (openvpn_inuse($this_server_config['vpnid'], 'server')) {
+-		$input_errors[] = gettext("Cannot delete an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
+-	} elseif (!$user_can_edit_advanced && !empty($this_server_config['custom_options'])) {
++	} elseif (!$user_can_edit_advanced && !empty($a_server[$id]['custom_options'])) {
+ 		$input_errors[] = gettext("This user does not have sufficient privileges to delete an instance with Advanced options set.");
+ 	} else {
+ 		openvpn_delete('server', $this_server_config);
+@@ -297,9 +295,7 @@
+ 		$vpnid = 0;
+ 	}
+ 
+-	if ($pconfig['disable'] && openvpn_inuse($vpnid, 'server')) {
+-		$input_errors[] = gettext("Cannot disable an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
+-	}
++	$pconfig['ncp_enable'] = ($pconfig['ncp_enable'] == 'yes') ? 'enabled' : 'disabled';
+ 
+ 	if (isset($pconfig['custom_options']) &&
+ 	    ($pconfig['custom_options'] != $this_server_config['custom_options']) &&
