@@ -1,7 +1,6 @@
-Warning: Permanently added '192.168.1.1' (ED25519) to the list of known hosts.
---- /usr/local/www/firewall_aliases_edit.php	2026-09-12 22:47:00.622877000 +0200
-+++ /usr/local/www/firewall_aliases_edit.php	2026-09-12 22:46:31.466529000 +0200
-@@ -138,8 +138,21 @@
+--- /usr/local/www/firewall_aliases_edit.php
++++ /usr/local/www/firewall_aliases_edit.php
+@@ -138,8 +138,21 @@ $pgtitle = array(gettext("Firewall"), gettext("Aliases"), gettext("Edit"));
  $pglinks = array("", "firewall_aliases.php?tab=" . $tab, "@self");
  
  if ($_POST['save']) {
