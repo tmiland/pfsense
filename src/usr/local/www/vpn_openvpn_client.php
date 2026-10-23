@@ -68,8 +68,6 @@ if ($_POST['act'] == "del") {
 
 	if (empty($this_client_config)) {
 		$wc_msg = gettext('Deleted empty OpenVPN client');
-	} elseif (openvpn_inuse($this_client_config['vpnid'], 'client')) {
-		$input_errors[] = gettext("Cannot delete an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
 	} elseif (!$user_can_edit_advanced && !empty($this_client_config['custom_options'])) {
 		$input_errors[] = gettext("This user does not have sufficient privileges to delete an instance with Advanced options set.");
 	} else {
@@ -209,10 +207,6 @@ if ($_POST['save']) {
 		$vpnid = $this_client_config['vpnid'];
 	} else {
 		$vpnid = 0;
-	}
-
-	if ($pconfig['disable'] && openvpn_inuse($vpnid, 'client')) {
-		$input_errors[] = gettext("Cannot disable an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
 	}
 
 	if (isset($pconfig['custom_options']) &&
