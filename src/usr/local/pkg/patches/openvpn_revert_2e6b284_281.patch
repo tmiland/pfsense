@@ -1,0 +1,63 @@
+From 4bf6beccf3b0cf5073a1269bbc33665be282795a Mon Sep 17 00:00:00 2001
+From: "tmiland-lab[bot]" <326116980+tmiland-lab[bot]@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 21:04:09 +0200
+Subject: [PATCH] Revert Commit 2e6b284 (2.8.1 refresh) - allow delete/disable
+ of OpenVPN instances with assigned interfaces
+
+Removes only the assigned-interface guard blocks from the OpenVPN client/server web UI (delete + disable) so instances can be parked and re-enabled without removing the interface assignment. Keeps openvpn_inuse() and openvpn_tunnel_network_fix() in openvpn.inc (still used by RESTAPI models and tunnel network handling); no stale 2021-era lines (ncp_enable / a_client[]).
+---
+ src/usr/local/www/vpn_openvpn_client.php | 6 ------
+ src/usr/local/www/vpn_openvpn_server.php | 6 ------
+ 2 files changed, 12 deletions(-)
+
+diff --git a/src/usr/local/www/vpn_openvpn_client.php b/src/usr/local/www/vpn_openvpn_client.php
+index bbf1b0c79d..9ef19a1b34 100644
+--- a/src/usr/local/www/vpn_openvpn_client.php
++++ b/src/usr/local/www/vpn_openvpn_client.php
+@@ -68,8 +68,6 @@ if ($_POST['act'] == "del") {
+ 
+ 	if (empty($this_client_config)) {
+ 		$wc_msg = gettext('Deleted empty OpenVPN client');
+-	} elseif (openvpn_inuse($this_client_config['vpnid'], 'client')) {
+-		$input_errors[] = gettext("Cannot delete an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
+ 	} elseif (!$user_can_edit_advanced && !empty($this_client_config['custom_options'])) {
+ 		$input_errors[] = gettext("This user does not have sufficient privileges to delete an instance with Advanced options set.");
+ 	} else {
+@@ -211,10 +209,6 @@ if ($_POST['save']) {
+ 		$vpnid = 0;
+ 	}
+ 
+-	if ($pconfig['disable'] && openvpn_inuse($vpnid, 'client')) {
+-		$input_errors[] = gettext("Cannot disable an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
+-	}
+-
+ 	if (isset($pconfig['custom_options']) &&
+ 	    ($pconfig['custom_options'] != $this_client_config['custom_options']) &&
+ 	    !$user_can_edit_advanced) {
+diff --git a/src/usr/local/www/vpn_openvpn_server.php b/src/usr/local/www/vpn_openvpn_server.php
+index 9f8947b700..eabb61c889 100644
+--- a/src/usr/local/www/vpn_openvpn_server.php
++++ b/src/usr/local/www/vpn_openvpn_server.php
+@@ -77,8 +77,6 @@ if ($_POST['act'] == "del") {
+ 
+ 	if (empty($this_server_config)) {
+ 		$wc_msg = gettext('Deleted empty OpenVPN server');
+-	} elseif (openvpn_inuse($this_server_config['vpnid'], 'server')) {
+-		$input_errors[] = gettext("Cannot delete an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
+ 	} elseif (!$user_can_edit_advanced && !empty($this_server_config['custom_options'])) {
+ 		$input_errors[] = gettext("This user does not have sufficient privileges to delete an instance with Advanced options set.");
+ 	} else {
+@@ -297,10 +295,6 @@ if ($_POST['save']) {
+ 		$vpnid = 0;
+ 	}
+ 
+-	if ($pconfig['disable'] && openvpn_inuse($vpnid, 'server')) {
+-		$input_errors[] = gettext("Cannot disable an OpenVPN instance while the interface is assigned. Remove the interface assignment first.");
+-	}
+-
+ 	if (isset($pconfig['custom_options']) &&
+ 	    ($pconfig['custom_options'] != $this_server_config['custom_options']) &&
+ 	    !$user_can_edit_advanced) {
+-- 
+2.47.3
+
